@@ -1,19 +1,21 @@
 from ultralytics import YOLO
 
 # Load a pretrained YOLO11n model
-model = YOLO("yolo11x.pt")
+model = YOLO("checkpoints/yolo11x.pt")
+from ultralytics import YOLO
 
-# Train the model on the COCO8 dataset for 100 epochs
-train_results = model.train(
-    data="coco8.yaml",  # Path to dataset configuration file
-    epochs=100,  # Number of training epochs
-    imgsz=640,  # Image size for training
-    device="cpu",  # Device to run on (e.g., 'cpu', 0, [0,1,2,3])
-)
+# Load a model
+model = YOLO("checkpoints/yolo11x.pt")  # pretrained YOLO11n model
 
-# Evaluate the model's performance on the validation set
-metrics = model.val()
+# Run batched inference on a list of images
+results = model(["images/2.jpg", "images/3.jpg"])  # return a list of Results objects
 
-# Perform object detection on an image
-results = model("images/1.jpg")  # Predict on an image
-results[0].show()  # Display results
+# Process results list
+for result in results:
+    boxes = result.boxes  # Boxes object for bounding box outputs
+    masks = result.masks  # Masks object for segmentation masks outputs
+    keypoints = result.keypoints  # Keypoints object for pose outputs
+    probs = result.probs  # Probs object for classification outputs
+    obb = result.obb  # Oriented boxes object for OBB outputs
+    result.show()  # display to screen
+    result.save(filename="image/result.jpg")

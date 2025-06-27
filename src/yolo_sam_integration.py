@@ -40,7 +40,7 @@ class YOLOSAMIntegrator:
     
     def __init__(self, 
                  yolo_model_path: str = "yolo11x.pt",
-                 sam_checkpoint: str = "checkpoints/sam2.1_hiera_large.pt",
+                 sam_checkpoint: str = "sam2.1_hiera_large.pt",
                  sam_config: str = "configs/sam2.1/sam2.1_hiera_l.yaml",
                  confidence_threshold: float = 0.5,
                  logger: Optional[logging.Logger] = None):
@@ -210,7 +210,9 @@ class YOLOSAMIntegrator:
     def create_colored_mask(self, mask: np.ndarray, color: Tuple[int, int, int], alpha: float = 0.6) -> np.ndarray:
         """创建彩色mask"""
         colored_mask = np.zeros((*mask.shape, 4), dtype=np.uint8)
-        colored_mask[mask] = [*color, int(255 * alpha)]
+        # 确保mask是布尔类型
+        mask_bool = mask.astype(bool)
+        colored_mask[mask_bool] = [*color, int(255 * alpha)]
         return colored_mask
     
     def draw_text_with_background(self, draw: ImageDraw.Draw, position: Tuple[int, int], 
@@ -275,7 +277,8 @@ class YOLOSAMIntegrator:
                 colored_mask = self.create_colored_mask(mask, color)
                 
                 # 添加到合成mask
-                composite_mask[mask] = colored_mask[mask]
+                mask_bool = mask.astype(bool)
+                composite_mask[mask_bool] = colored_mask[mask_bool]
                 
                 # 保存单个mask（如果需要）
                 if save_individual_masks:
@@ -293,9 +296,10 @@ class YOLOSAMIntegrator:
                     # 叠加mask
                     mask_indices = single_colored_mask[:, :, 3] > 0
                     for c in range(3):
+                        alpha = single_colored_mask[mask_indices, 3].astype(np.float32) / 255.0
                         single_array[mask_indices, c] = (
-                            single_array[mask_indices, c] * (1 - single_colored_mask[mask_indices, 3] / 255) +
-                            single_colored_mask[mask_indices, c] * (single_colored_mask[mask_indices, 3] / 255)
+                            single_array[mask_indices, c].astype(np.float32) * (1 - alpha) +
+                            single_colored_mask[mask_indices, c].astype(np.float32) * alpha
                         ).astype(np.uint8)
                     
                     # 绘制边界框和标签
@@ -338,9 +342,10 @@ class YOLOSAMIntegrator:
             # 叠加所有masks
             mask_indices = composite_mask[:, :, 3] > 0
             for c in range(3):
+                alpha = composite_mask[mask_indices, 3].astype(np.float32) / 255.0
                 final_array[mask_indices, c] = (
-                    final_array[mask_indices, c] * (1 - composite_mask[mask_indices, 3] / 255) +
-                    composite_mask[mask_indices, c] * (composite_mask[mask_indices, 3] / 255)
+                    final_array[mask_indices, c].astype(np.float32) * (1 - alpha) +
+                    composite_mask[mask_indices, c].astype(np.float32) * alpha
                 ).astype(np.uint8)
             
             # 绘制所有边界框和标签
@@ -390,23 +395,40 @@ class YOLOSAMIntegrator:
             return False
     
     def process_directory(self, input_dir: str, output_dir: str, 
-                         save_individual_masks: bool = True) -> Dict[str, int]:
-        """批量处理目录中的图像"""
+                         save_individual_masks: bool = True, 
+                         image_paths: Optional[List[str]] = None) -> Dict[str, int]:
+        """批量处理目录中的图像
+        
+        Args:
+            input_dir: 输入目录路径
+            output_dir: 输出目录路径
+            save_individual_masks: 是否保存单个物体的mask图像
+            image_paths: 指定要处理的图像文件路径列表，如果为None则处理整个目录
+        
+        Returns:
+            包含成功和失败数量的字典
+        """
         # 创建输出目录
         os.makedirs(output_dir, exist_ok=True)
         
         # 获取图像文件
-        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
-        image_files = []
-        for file_path in Path(input_dir).rglob('*'):
-            if file_path.suffix.lower() in supported_formats:
-                image_files.append(str(file_path))
-        
-        if not image_files:
-            self.logger.error(f"在目录 {input_dir} 中未找到支持的图像文件")
-            return {'success': 0, 'failed': 0}
-        
-        self.logger.info(f"找到 {len(image_files)} 张图像")
+        if image_paths is not None:
+            # 使用指定的图像路径列表
+            image_files = image_paths
+            self.logger.info(f"使用指定的图像列表，共 {len(image_files)} 张图像")
+        else:
+            # 扫描整个目录
+            supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif'}
+            image_files = []
+            for file_path in Path(input_dir).rglob('*'):
+                if file_path.suffix.lower() in supported_formats:
+                    image_files.append(str(file_path))
+            
+            if not image_files:
+                self.logger.error(f"在目录 {input_dir} 中未找到支持的图像文件")
+                return {'success': 0, 'failed': 0}
+            
+            self.logger.info(f"找到 {len(image_files)} 张图像")
         
         # 处理图像
         results = {'success': 0, 'failed': 0}

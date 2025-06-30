@@ -140,18 +140,46 @@ python3 main.py --limit 20 --seed 123 --output_dir sample_results
 
 ### 常见问题
 
-1. **模型加载失败**
+1. **检测不到物体 (最常见问题)**
+   - **症状**: 显示 "检测到 0 个物体"，所有图像处理失败
+   - **原因**: 置信度阈值过高 (默认0.25)
+   - **解决方案**: 
+     ```bash
+     # 使用更低的置信度阈值
+     python3 main.py --confidence_threshold 0.1
+     
+     # 运行诊断工具
+     python3 diagnose.py --input your_image_dir --samples 5
+     ```
+   - **详细指南**: 参见 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+2. **模型加载失败**
    - 检查模型文件路径是否正确
    - 确保有足够的内存和存储空间
 
-2. **没有找到图像文件**
+3. **没有找到图像文件**
    - 检查输入目录路径是否正确
    - 确保目录中包含支持的图像格式
 
-3. **处理速度慢**
+4. **处理速度慢**
    - 考虑使用较小的YOLO模型（如yolo11s.pt）
    - 提高置信度阈值以减少检测数量
    - 使用 `--limit` 参数处理部分图像
+
+### 诊断工具
+
+使用内置的诊断脚本来分析检测问题：
+
+```bash
+# 基本诊断
+python3 diagnose.py
+
+# 指定输入目录和样本数
+python3 diagnose.py --input /path/to/images --samples 5
+
+# 测试不同置信度阈值
+python3 diagnose.py --confidence_thresholds 0.1 0.2 0.3 0.5
+```
 
 ### 获取详细日志
 

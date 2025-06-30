@@ -25,8 +25,8 @@ def main():
 示例用法:
   python main.py                           # 处理images目录中的所有图像
   python main.py --limit 5                 # 随机选择5张图像进行处理
-  python main.py --input_dir my_images     # 指定输入目录
-  python main.py --output_dir results      # 指定输出目录
+  python main.py --input my_images     # 指定输入目录
+  python main.py --output results      # 指定输出目录
   python main.py --confidence_threshold 0.7 # 设置检测置信度阈值
         """
     )
@@ -38,13 +38,13 @@ def main():
         help="限制处理的图像数量 (0表示处理所有图像，>0表示随机选择指定数量的图像)"
     )
     parser.add_argument(
-        "--input_dir",
+        "--input",
         type=str,
         default="images",
         help="输入图像目录 (默认: images)"
     )
     parser.add_argument(
-        "--output_dir",
+        "--output",
         type=str,
         default="output",
         help="输出结果目录 (默认: output)"
@@ -70,8 +70,8 @@ def main():
     parser.add_argument(
         "--confidence_threshold",
         type=float,
-        default=0.5,
-        help="检测置信度阈值 (默认: 0.5)"
+        default=0.25,
+        help="检测置信度阈值 (默认: 0.25，建议范围: 0.1-0.8)"
     )
     parser.add_argument(
         "--save_individual_masks",
@@ -107,14 +107,14 @@ def main():
         print(f"✓ 设置随机种子: {args.seed}")
     
     # 检查必要的目录和文件
-    required_dirs = [args.input_dir, "models"]
+    required_dirs = [args.input, "models"]
     for dir_name in required_dirs:
         if not os.path.exists(dir_name):
             os.makedirs(dir_name, exist_ok=True)
             print(f"✓ 创建目录: {dir_name}")
     
     # 检查是否有测试图像
-    image_dir = Path(args.input_dir)
+    image_dir = Path(args.input)
     supported_extensions = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff", "*.tif"]
     image_files = []
     for ext in supported_extensions:
@@ -122,7 +122,7 @@ def main():
         image_files.extend(list(image_dir.glob(ext.upper())))
     
     if not image_files:
-        print(f"\n⚠️  警告: {args.input_dir}目录中没有找到图像文件")
+        print(f"\n⚠️  警告: {args.input}目录中没有找到图像文件")
         print("请将要处理的图像文件放入指定目录中")
         print("支持的格式: .jpg, .jpeg, .png, .bmp, .tiff, .tif")
         return
@@ -171,18 +171,18 @@ def main():
     print("✅ 模型加载成功")
     
     # 处理图像
-    print(f"\n🎯 开始处理图像，输出目录: {args.output_dir}")
+    print(f"\n🎯 开始处理图像，输出目录: {args.output}")
     print(f"📊 参数设置:")
-    print(f"  • 输入目录: {args.input_dir}")
-    print(f"  • 输出目录: {args.output_dir}")
+    print(f"  • 输入目录: {args.input}")
+    print(f"  • 输出目录: {args.output}")
     print(f"  • 处理图像数: {len(image_files)}")
     print(f"  • 置信度阈值: {args.confidence_threshold}")
     print(f"  • 保存单个掩码: {args.save_individual_masks}")
     
     # 处理图像
     results = integrator.process_directory(
-        input_dir=args.input_dir,
-        output_dir=args.output_dir,
+        input_dir=args.input,
+        output_dir=args.output,
         save_individual_masks=args.save_individual_masks,
         image_paths=[str(p) for p in image_files]  # 传递筛选后的图像路径
     )
@@ -194,12 +194,22 @@ def main():
     print(f"❌ 处理失败: {results['failed']} 张图像")
     
     if results['success'] > 0:
-        print(f"\n📁 结果文件保存在: {args.output_dir}")
+        print(f"\n📁 结果文件保存在: {args.output}")
         print("\n生成的文件类型:")
         print("  • *_yolo_sam_result.png - 完整的检测和分割结果")
         if args.save_individual_masks:
             print("  • *_<类别名>_<序号>_conf<置信度>.png - 单个物体的分割结果")
         print("  • *_detection_info.json - 检测信息的JSON文件")
+    elif results['failed'] > 0:
+        print("\n🔧 处理失败的可能原因和解决方案:")
+        print("1. 置信度阈值过高:")
+        print(f"   当前阈值: {args.confidence_threshold}")
+        print("   建议尝试: --confidence_threshold 0.1")
+        print("2. 图像中没有YOLO模型能识别的常见物体")
+        print("3. 运行诊断工具查看详细信息:")
+        print(f"   python3 diagnose.py --input {args.input} --samples 5")
+        print("\n💡 快速修复建议:")
+        print(f"   python3 main.py --input {args.input} --confidence_threshold 0.1 --limit {len(image_files)}")
     
     print("\n🎉 演示完成!")
     print("=" * 60)
